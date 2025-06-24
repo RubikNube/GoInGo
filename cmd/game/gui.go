@@ -101,3 +101,62 @@ func (g *Gui) DrawGrid() {
 	}
 	g.Refresh()
 }
+
+func (g *Gui) DrawGridWithCursor(cursorRow, cursorCol int) {
+	g.ClearScreen()
+	// Draw column labels
+	print("   ")
+	for j := range [9]int{} {
+		print(j + 1)
+		if j < 8 {
+			print("   ")
+		}
+	}
+	println()
+	// Draw top border
+	print("  ┌")
+	for j := range [9]int{} {
+		print("───")
+		if j < 8 {
+			print("┬")
+		}
+	}
+	println("┐")
+	for i := range [9]int{} {
+		// Draw row label
+		print(i+1, " │")
+		for j := range [9]int{} {
+			char := g.Grid[i][j].String()
+			if i == cursorRow && j == cursorCol {
+				print("[", char, "]")
+			} else {
+				print(" ", char, " ")
+			}
+			if j < 8 {
+				print("│")
+			}
+		}
+		println("│")
+		// Draw row separator or bottom border
+		if i < 8 {
+			print("  ├")
+			for j := range [9]int{} {
+				print("───")
+				if j < 8 {
+					print("┼")
+				}
+			}
+			println("┤")
+		} else {
+			print("  └")
+			for j := range [9]int{} {
+				print("───")
+				if j < 8 {
+					print("┴")
+				}
+			}
+			println("┘")
+		}
+	}
+	g.Refresh()
+}
