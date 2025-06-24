@@ -13,7 +13,7 @@ func main() {
 
 	for {
 		var input string
-		fmt.Print("Move (h/j/k/l, q to quit): ")
+		fmt.Print("Move (h/j/k/l, p to place stone, q to quit): ")
 		fmt.Scanln(&input)
 
 		switch input {
@@ -32,6 +32,24 @@ func main() {
 		case "j":
 			if cursorRow < 8 {
 				cursorRow++
+			}
+		case "p":
+			// Place a stone if the cell is empty
+			if gui.Grid[cursorRow][cursorCol] == game.Empty {
+				// Alternate between Black and White stones
+				stone := game.Black
+				stoneCount := 0
+				for i := 0; i < 9; i++ {
+					for j := 0; j < 9; j++ {
+						if gui.Grid[i][j] == game.Black || gui.Grid[i][j] == game.White {
+							stoneCount++
+						}
+					}
+				}
+				if stoneCount%2 == 1 {
+					stone = game.White
+				}
+				gui.Grid[cursorRow][cursorCol] = stone
 			}
 		case "q":
 			fmt.Println("Quitting game.")
