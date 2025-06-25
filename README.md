@@ -14,7 +14,7 @@ The Game of Go written in Go
     * `l` - right
     * `q` - quit
     * `ẁ` - save game
-    * `space` - place stone
+    * `p` - place stone
   * these can be changed in the `config.json` file
 * only supports 9x9 boards
 * the GUI is terminal-based

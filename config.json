@@ -1,11 +1,11 @@
 {
   "keybindings": {
-    "moveLeft:": "h",
+    "moveLeft": "h",
     "moveRight": "l",
     "moveUp": "k",
     "moveDown": "j",
     "quit": "q",
     "save": "w",
-    "placeStone": "space"
+    "placeStone": "p"
   }
 }
