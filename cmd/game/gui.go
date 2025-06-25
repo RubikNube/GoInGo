@@ -1,6 +1,11 @@
 // Package game provides the GUI for the game of the gods.
 package game
 
+import (
+	"fmt"
+	"io"
+)
+
 // FieldState A field an either empty or occupied by a black or white stone.
 type FieldState int
 
@@ -47,116 +52,59 @@ func (g *Gui) Refresh() {
 	print("\033[?25h") // Show cursor
 }
 
-func (g *Gui) DrawGrid() {
-	g.ClearScreen()
+func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int) {
 	// Draw column labels
-	print("   ")
+	fmt.Fprint(w, "     ")
 	for j := range [9]int{} {
-		print(j + 1)
+		fmt.Fprint(w, j+1)
 		if j < 8 {
-			print("   ")
+			fmt.Fprint(w, "   ")
 		}
 	}
-	println()
+	fmt.Fprintln(w)
 	// Draw top border
-	print("  ┌")
+	fmt.Fprint(w, "   ┌")
 	for j := range [9]int{} {
-		print("───")
+		fmt.Fprint(w, "───")
 		if j < 8 {
-			print("┬")
+			fmt.Fprint(w, "┬")
 		}
 	}
-	println("┐")
+	fmt.Fprintln(w, "┐")
 	for i := range [9]int{} {
 		// Draw row label
-		print(i+1, " │")
-		for j := range [9]int{} {
-			char := g.Grid[i][j].String()
-			print(" ", char, " ")
-			if j < 8 {
-				print("│")
-			}
-		}
-		println("│")
-		// Draw row separator or bottom border
-		if i < 8 {
-			print("  ├")
-			for j := range [9]int{} {
-				print("───")
-				if j < 8 {
-					print("┼")
-				}
-			}
-			println("┤")
-		} else {
-			print("  └")
-			for j := range [9]int{} {
-				print("───")
-				if j < 8 {
-					print("┴")
-				}
-			}
-			println("┘")
-		}
-	}
-	g.Refresh()
-}
-
-func (g *Gui) DrawGridWithCursor(cursorRow, cursorCol int) {
-	g.ClearScreen()
-	// Draw column labels
-	print("   ")
-	for j := range [9]int{} {
-		print(j + 1)
-		if j < 8 {
-			print("   ")
-		}
-	}
-	println()
-	// Draw top border
-	print("  ┌")
-	for j := range [9]int{} {
-		print("───")
-		if j < 8 {
-			print("┬")
-		}
-	}
-	println("┐")
-	for i := range [9]int{} {
-		// Draw row label
-		print(i+1, " │")
+		fmt.Fprintf(w, "%2d │", i+1)
 		for j := range [9]int{} {
 			char := g.Grid[i][j].String()
 			if i == cursorRow && j == cursorCol {
-				print("[", char, "]")
+				fmt.Fprint(w, "[", char, "]")
 			} else {
-				print(" ", char, " ")
+				fmt.Fprint(w, " ", char, " ")
 			}
 			if j < 8 {
-				print("│")
+				fmt.Fprint(w, "│")
 			}
 		}
-		println("│")
+		fmt.Fprintln(w, "│")
 		// Draw row separator or bottom border
 		if i < 8 {
-			print("  ├")
+			fmt.Fprint(w, "   ├")
 			for j := range [9]int{} {
-				print("───")
+				fmt.Fprint(w, "───")
 				if j < 8 {
-					print("┼")
+					fmt.Fprint(w, "┼")
 				}
 			}
-			println("┤")
+			fmt.Fprintln(w, "┤")
 		} else {
-			print("  └")
+			fmt.Fprint(w, "   └")
 			for j := range [9]int{} {
-				print("───")
+				fmt.Fprint(w, "───")
 				if j < 8 {
-					print("┴")
+					fmt.Fprint(w, "┴")
 				}
 			}
-			println("┘")
+			fmt.Fprintln(w, "┘")
 		}
 	}
-	g.Refresh()
 }
