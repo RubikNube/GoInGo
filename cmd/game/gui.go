@@ -65,11 +65,39 @@ func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int) {
 		fmt.Fprintf(w, "%2d ", i+1)
 		for j := 0; j < 9; j++ {
 			stone := g.Grid[i][j].String()
-			cell := fmt.Sprintf("-%s-", stone)
+			// Use box-drawing characters for borders and intersections
+			if g.Grid[i][j] != Empty {
+				stone = g.Grid[i][j].String()
+			} else {
+				switch {
+				case i == 0 && j == 0:
+					stone = "┌"
+				case i == 0 && j == 8:
+					stone = "┐"
+				case i == 8 && j == 0:
+					stone = "└"
+				case i == 8 && j == 8:
+					stone = "┘"
+				case i == 0:
+					stone = "┬"
+				case i == 8:
+					stone = "┴"
+				case j == 0:
+					stone = "├"
+				case j == 8:
+					stone = "┤"
+				default:
+					stone = g.Grid[i][j].String()
+				}
+			}
+			var cell string
 			if j == 0 {
-				cell = fmt.Sprintf(" %s-", stone)
+				cell = fmt.Sprintf(" %s─", stone)
 			} else if j == 8 {
-				cell = fmt.Sprintf("-%s ", stone)
+				cell = fmt.Sprintf("─%s ", stone)
+			} else {
+				// Use a box-drawing character for the stone
+				cell = fmt.Sprintf("─%s─", stone)
 			}
 
 			if i == cursorRow && j == cursorCol {
@@ -77,6 +105,7 @@ func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int) {
 				cell = fmt.Sprintf("[%s]", stone)
 			}
 			fmt.Fprint(w, cell)
+
 			// Draw horizontal line except after last column
 			if j < 8 {
 				fmt.Fprint(w, "─")
