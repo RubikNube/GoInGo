@@ -22,8 +22,8 @@ type Gui struct {
 
 var FieldStateName = map[FieldState]string{
 	Empty: "+",
-	Black: "○", // Unicode empty circle for black stone
-	White: "●", // Unicode filled circle for white stone
+	Black: "\033[1m⚫\033[0m",
+	White: "\033[1m⚪\033[0m",
 }
 
 func (fs FieldState) String() string {
