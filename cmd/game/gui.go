@@ -21,7 +21,7 @@ type Gui struct {
 }
 
 var FieldStateName = map[FieldState]string{
-	Empty: " ",
+	Empty: "┼",
 	Black: "○", // Unicode empty circle for black stone
 	White: "●", // Unicode filled circle for white stone
 }
@@ -53,58 +53,46 @@ func (g *Gui) Refresh() {
 }
 
 func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int) {
-	// Draw column labels
-	fmt.Fprint(w, "     ")
-	for j := range [9]int{} {
-		fmt.Fprint(w, j+1)
-		if j < 8 {
-			fmt.Fprint(w, "   ")
-		}
+	// Column labels
+	fmt.Fprint(w, "   ")
+	for j := 0; j < 9; j++ {
+		fmt.Fprintf(w, " %c  ", 'A'+j)
 	}
 	fmt.Fprintln(w)
-	// Draw top border
-	fmt.Fprint(w, "   ┌")
-	for j := range [9]int{} {
-		fmt.Fprint(w, "───")
-		if j < 8 {
-			fmt.Fprint(w, "┬")
-		}
-	}
-	fmt.Fprintln(w, "┐")
-	for i := range [9]int{} {
-		// Draw row label
-		fmt.Fprintf(w, "%2d │", i+1)
-		for j := range [9]int{} {
-			char := g.Grid[i][j].String()
+
+	for i := 0; i < 9; i++ {
+		// Row label
+		fmt.Fprintf(w, "%2d ", i+1)
+		for j := 0; j < 9; j++ {
+			stone := g.Grid[i][j].String()
+			cell := fmt.Sprintf("-%s-", stone)
+			if j == 0 {
+				cell = fmt.Sprintf(" %s-", stone)
+			} else if j == 8 {
+				cell = fmt.Sprintf("-%s ", stone)
+			}
+
 			if i == cursorRow && j == cursorCol {
-				fmt.Fprint(w, "[", char, "]")
-			} else {
-				fmt.Fprint(w, " ", char, " ")
+				// Use a different background or brackets, but keep width 3
+				cell = fmt.Sprintf("[%s]", stone)
 			}
+			fmt.Fprint(w, cell)
+			// Draw horizontal line except after last column
 			if j < 8 {
-				fmt.Fprint(w, "│")
+				fmt.Fprint(w, "─")
 			}
 		}
-		fmt.Fprintln(w, "│")
-		// Draw row separator or bottom border
+		fmt.Fprintln(w)
+		// Draw vertical lines except after last row
 		if i < 8 {
-			fmt.Fprint(w, "   ├")
-			for j := range [9]int{} {
-				fmt.Fprint(w, "───")
+			fmt.Fprint(w, "   ")
+			for j := 0; j < 9; j++ {
+				fmt.Fprint(w, " │ ")
 				if j < 8 {
-					fmt.Fprint(w, "┼")
+					fmt.Fprint(w, " ")
 				}
 			}
-			fmt.Fprintln(w, "┤")
-		} else {
-			fmt.Fprint(w, "   └")
-			for j := range [9]int{} {
-				fmt.Fprint(w, "───")
-				if j < 8 {
-					fmt.Fprint(w, "┴")
-				}
-			}
-			fmt.Fprintln(w, "┘")
+			fmt.Fprintln(w)
 		}
 	}
 }
