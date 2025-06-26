@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
-	"log"
-
 	"encoding/json"
-	"os"
+	"fmt"
 	"github.com/RubikNube/GoInGo/cmd/game"
 	"github.com/jroimartin/gocui"
+	"log"
+	"os"
+	"unicode"
 )
 
 type Config struct {
@@ -46,7 +46,7 @@ func layout(g *gocui.Gui) error {
 			return err
 		}
 		v.Wrap = false
-		fmt.Fprintf(v, "Move (%s/%s/%s/%s), %s to place stone, %s to quit",keybindings["moveLeft"], keybindings["moveDown"], keybindings["moveUp"], keybindings["moveRight"], keybindings["placeStone"], keybindings["quit"])
+		fmt.Fprintf(v, "Move (%s/%s/%s/%s), %s to place stone, %s to quit", keybindings["moveLeft"], keybindings["moveDown"], keybindings["moveUp"], keybindings["moveRight"], keybindings["placeStone"], keybindings["quit"])
 	}
 	// Always redraw board
 	if v, err := g.View("board"); err == nil {
@@ -56,21 +56,41 @@ func layout(g *gocui.Gui) error {
 	return nil
 }
 
-func moveCursor(dRow, dCol int) func(*gocui.Gui, *gocui.View) error {
+func moveCursor(dRow, dCol int, jumpOverOccupied bool) func(*gocui.Gui, *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
-		cursorRow += dRow
-		cursorCol += dCol
-		if cursorRow < 0 {
-			cursorRow = 0
-		}
-		if cursorRow > 8 {
-			cursorRow = 8
-		}
-		if cursorCol < 0 {
-			cursorCol = 0
-		}
-		if cursorCol > 8 {
-			cursorCol = 8
+		nextRow, nextCol := cursorRow, cursorCol
+		for {
+			nextRow += dRow
+			nextCol += dCol
+			if nextRow < 0 {
+				nextRow = 0
+				break
+			}
+			if nextRow > 8 {
+				nextRow = 8
+				break
+			}
+			if nextCol < 0 {
+				nextCol = 0
+				break
+			}
+			if nextCol > 8 {
+				nextCol = 8
+				break
+			}
+			if jumpOverOccupied {
+				if gui.Grid[nextRow][nextCol] == game.Empty {
+					cursorRow, cursorCol = nextRow, nextCol
+					break
+				}
+				// If we hit the edge and still not empty, stop
+				if (dRow != 0 && (nextRow == 0 || nextRow == 8)) || (dCol != 0 && (nextCol == 0 || nextCol == 8)) {
+					break
+				}
+			} else {
+				cursorRow, cursorCol = nextRow, nextCol
+				break
+			}
 		}
 		return nil
 	}
@@ -128,18 +148,33 @@ func main() {
 		placeKey = []rune(placeStoneKey)[0]
 	}
 
-	if err := g.SetKeybinding("", moveLeftKey, gocui.ModNone, moveCursor(0, -1)); err != nil {
+	// Lowercase: move regardless of occupation
+	if err := g.SetKeybinding("", moveLeftKey, gocui.ModNone, moveCursor(0, -1, false)); err != nil {
 		log.Panicln(err)
 	}
-	if err := g.SetKeybinding("", moveRightKey, gocui.ModNone, moveCursor(0, 1)); err != nil {
+	if err := g.SetKeybinding("", moveRightKey, gocui.ModNone, moveCursor(0, 1, false)); err != nil {
 		log.Panicln(err)
 	}
-	if err := g.SetKeybinding("", moveUpKey, gocui.ModNone, moveCursor(-1, 0)); err != nil {
+	if err := g.SetKeybinding("", moveUpKey, gocui.ModNone, moveCursor(-1, 0, false)); err != nil {
 		log.Panicln(err)
 	}
-	if err := g.SetKeybinding("", moveDownKey, gocui.ModNone, moveCursor(1, 0)); err != nil {
+	if err := g.SetKeybinding("", moveDownKey, gocui.ModNone, moveCursor(1, 0, false)); err != nil {
 		log.Panicln(err)
 	}
+	// Uppercase: jump over occupied intersections (Shift+key)
+	if err := g.SetKeybinding("", rune(unicode.ToUpper(moveLeftKey)), gocui.ModNone, moveCursor(0, -1, true)); err != nil {
+		log.Panicln(err)
+	}
+	if err := g.SetKeybinding("", rune(unicode.ToUpper(moveRightKey)), gocui.ModNone, moveCursor(0, 1, true)); err != nil {
+		log.Panicln(err)
+	}
+	if err := g.SetKeybinding("", rune(unicode.ToUpper(moveUpKey)), gocui.ModNone, moveCursor(-1, 0, true)); err != nil {
+		log.Panicln(err)
+	}
+	if err := g.SetKeybinding("", rune(unicode.ToUpper(moveDownKey)), gocui.ModNone, moveCursor(1, 0, true)); err != nil {
+		log.Panicln(err)
+	}
+
 	if err := g.SetKeybinding("", placeKey, gocui.ModNone, placeStone); err != nil {
 		log.Panicln(err)
 	}
