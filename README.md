@@ -15,7 +15,8 @@ The Game of Go written in Go
     * `q` - quit
     * `ẁ` - save game
     * `p` - place stone
-  * if `shift` is pressed the navigation will jump to the next empty intersection
+  * If you hold `Shift` while navigating, the cursor jumps over occupied intersections
+  to the next empty one.
   * these can be changed in the `config.json` file
 * only supports 9x9 boards
 * the GUI is terminal-based
