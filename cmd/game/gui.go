@@ -86,7 +86,13 @@ func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int) {
 				case j == 8:
 					stone = "┤"
 				default:
-					stone = g.Grid[i][j].String()
+					// Mark the center intersection bold if empty
+					if i == 2 && j == 2 || i == 4 && j == 4 || i == 6 && j == 6 || i == 2 && j == 6 || i == 6 && j == 2 {
+
+						stone = "\033[1m" + g.Grid[i][j].String() + "\033[0m"
+					} else {
+						stone = g.Grid[i][j].String()
+					}
 				}
 			}
 			cell := stone
