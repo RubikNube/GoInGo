@@ -21,7 +21,7 @@ type Gui struct {
 }
 
 var FieldStateName = map[FieldState]string{
-	Empty: "+",
+	Empty: "┼",
 	Black: "\033[1m⚫\033[0m",
 	White: "\033[1m⚪\033[0m",
 }
@@ -65,12 +65,39 @@ func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int) {
 		fmt.Fprintf(w, "%2d ", i+1)
 		for j, cellVal := range row {
 			stone := cellVal.String()
+			if g.Grid[i][j] != Empty {
+				stone = g.Grid[i][j].String()
+			} else {
+				switch {
+				case i == 0 && j == 0:
+					stone = "┌"
+				case i == 0 && j == 8:
+					stone = "┐"
+				case i == 8 && j == 0:
+					stone = "└"
+				case i == 8 && j == 8:
+					stone = "┘"
+				case i == 0:
+					stone = "┬"
+				case i == 8:
+					stone = "┴"
+				case j == 0:
+					stone = "├"
+				case j == 8:
+					stone = "┤"
+				default:
+					stone = g.Grid[i][j].String()
+				}
+			}
+			cell := stone
 
-			cell := fmt.Sprintf("-%s-", stone)
 			if j == 0 {
-				cell = fmt.Sprintf(" %s-", stone)
+				cell = fmt.Sprintf(" %s─", stone)
 			} else if j == 8 {
-				cell = fmt.Sprintf("-%s ", stone)
+				cell = fmt.Sprintf("─%s ", stone)
+			} else {
+				// Use a box-drawing character for the stone
+				cell = fmt.Sprintf("─%s─", stone)
 			}
 			if i == cursorRow && j == cursorCol {
 				cell = fmt.Sprintf("[%s]", stone)
@@ -78,7 +105,7 @@ func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int) {
 			fmt.Fprint(w, cell)
 			// Draw horizontal line except after last column
 			if j < 8 {
-				fmt.Fprint(w, "-")
+				fmt.Fprint(w, "─")
 			}
 		}
 		fmt.Fprintln(w)
@@ -86,7 +113,7 @@ func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int) {
 		if i < 8 {
 			fmt.Fprint(w, "   ")
 			for j := range g.Grid[i] {
-				fmt.Fprint(w, " | ")
+				fmt.Fprint(w, " │ ")
 				if j < 8 {
 					fmt.Fprint(w, " ")
 				}
