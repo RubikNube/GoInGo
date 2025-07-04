@@ -6,6 +6,7 @@
     "moveDown": "j",
     "quit": "q",
     "save": "w",
-    "placeStone": "p"
+    "placeStone": "p",
+    "passTurn": "x"
   }
 }

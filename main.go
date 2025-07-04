@@ -3,11 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/RubikNube/GoInGo/cmd/game"
-	"github.com/jroimartin/gocui"
 	"log"
 	"os"
+	"time"
 	"unicode"
+
+	"github.com/RubikNube/GoInGo/cmd/game"
+	"github.com/jroimartin/gocui"
 )
 
 type Config struct {
@@ -18,7 +20,9 @@ var (
 	cursorRow, cursorCol int
 	gui                  game.Gui
 	keybindings          map[string]string
-	prevBoard            *game.Board // Track previous board for Ko rule
+	prevBoard            *game.Board     // Track previous board for Ko rule
+	currentPlayer        int         = 1 // Track current player (1 or 2), start with Black
+	koPoint              *game.Point     // Track Ko point (nil if no Ko)
 )
 
 func loadConfig(path string) (Config, error) {
@@ -30,6 +34,10 @@ func loadConfig(path string) (Config, error) {
 	defer f.Close()
 	err = json.NewDecoder(f).Decode(&cfg)
 	return cfg, err
+}
+
+func printMovePrompt(v *gocui.View) {
+	fmt.Fprintf(v, "Move (%s/%s/%s/%s), %s to place stone, %s to pass, %s to quit", keybindings["moveLeft"], keybindings["moveDown"], keybindings["moveUp"], keybindings["moveRight"], keybindings["placeStone"], keybindings["passTurn"], keybindings["quit"])
 }
 
 func layout(g *gocui.Gui) error {
@@ -47,7 +55,7 @@ func layout(g *gocui.Gui) error {
 			return err
 		}
 		v.Wrap = false
-		fmt.Fprintf(v, "Move (%s/%s/%s/%s), %s to place stone, %s to quit", keybindings["moveLeft"], keybindings["moveDown"], keybindings["moveUp"], keybindings["moveRight"], keybindings["placeStone"], keybindings["quit"])
+		printMovePrompt(v)
 	}
 	// Always redraw board
 	if v, err := g.View("board"); err == nil {
@@ -101,57 +109,152 @@ func placeStone(g *gocui.Gui, v *gocui.View) error {
 	if gui.Grid[cursorRow][cursorCol] != game.Empty {
 		return nil
 	}
-	stone := game.Black
-	stoneCount := 0
-	for i := 0; i < 9; i++ {
-		for j := 0; j < 9; j++ {
-			if gui.Grid[i][j] == game.Black || gui.Grid[i][j] == game.White {
-				stoneCount++
-			}
+	// Ko rule: forbid move at koPoint
+	if koPoint != nil && cursorRow == koPoint.Row && cursorCol == koPoint.Col {
+		if v, err := g.View("prompt"); err == nil && v != nil {
+			v.Clear()
+			fmt.Fprint(v, "Illegal move! Ko rule.")
+			go func() {
+				time.Sleep(1 * time.Second)
+				g.Update(func(g *gocui.Gui) error {
+					if v, err := g.View("prompt"); err == nil && v != nil {
+						v.Clear()
+						printMovePrompt(v)
+					}
+					return nil
+				})
+			}()
 		}
+		return nil
 	}
-	if stoneCount%2 == 1 {
+
+	stone := game.Black
+	if currentPlayer == 2 {
 		stone = game.White
 	}
 	// Track previous board for Ko rule (simple implementation: store last board)
 	if prevBoard == nil {
-		// First move, no previous board
 		prev := game.Board{}
 		copy(prev[:], gui.Grid[:])
 		prevBoard = &prev
 	}
+	// Simulate the move and captures on a copy of the board
 	var nextBoard game.Board
 	copy(nextBoard[:], gui.Grid[:])
 	nextBoard[cursorRow][cursorCol] = stone
 
-	if game.IsLegalMove(gui.Grid, game.Point{Row: cursorRow, Col: cursorCol}, stone, *prevBoard) {
-		gui.Grid[cursorRow][cursorCol] = stone
-
-		// Remove opponent groups with no liberties (capture)
-		opp := game.Black
-		if stone == game.Black {
-			opp = game.White
-		}
-		for _, n := range game.Neighbors(game.Point{Row: cursorRow, Col: cursorCol}) {
-			if gui.Grid[n.Row][n.Col] == opp {
-				group, libs := game.Group(gui.Grid, n)
-				if len(libs) == 0 {
-					for stonePt := range group {
-						gui.Grid[stonePt.Row][stonePt.Col] = game.Empty
-					}
+	opp := game.Black
+	if stone == game.Black {
+		opp = game.White
+	}
+	captured := []game.Point{}
+	for _, n := range game.Neighbors(game.Point{Row: cursorRow, Col: cursorCol}) {
+		if nextBoard[n.Row][n.Col] == opp {
+			group, libs := game.Group(nextBoard, n)
+			if len(libs) == 0 {
+				for stonePt := range group {
+					nextBoard[stonePt.Row][stonePt.Col] = game.Empty
+					captured = append(captured, stonePt)
 				}
 			}
 		}
+	}
 
-		// Update prevBoard for next move
-		copy(prevBoard[:], nextBoard[:])
-	} else {
-		// Optionally, show a message to the user (here: print to prompt view)
-		if v, err := g.View("prompt"); err == nil {
+	// Check for liberties of the placed stone's group (suicide rule)
+	_, libs := game.Group(nextBoard, game.Point{Row: cursorRow, Col: cursorCol})
+	if len(libs) == 0 {
+		if v, err := g.View("prompt"); err == nil && v != nil {
 			v.Clear()
-			fmt.Fprint(v, "Illegal move! Try again.")
+			fmt.Fprint(v, "Illegal move! No liberties.")
+			go func() {
+				time.Sleep(1 * time.Second)
+				g.Update(func(g *gocui.Gui) error {
+					if v, err := g.View("prompt"); err == nil && v != nil {
+						v.Clear()
+						printMovePrompt(v)
+					}
+					return nil
+				})
+			}()
+		}
+		return nil
+	}
+
+	// Ko rule and legality check: resulting board must not match prevBoard
+	if prevBoard != nil {
+		same := true
+		for i := range nextBoard {
+			if nextBoard[i] != (*prevBoard)[i] {
+				same = false
+				break
+			}
+		}
+		if same {
+			if v, err := g.View("prompt"); err == nil && v != nil {
+				v.Clear()
+				fmt.Fprint(v, "Illegal move! Try again.")
+				go func() {
+					time.Sleep(1 * time.Second)
+					g.Update(func(g *gocui.Gui) error {
+						if v, err := g.View("prompt"); err == nil && v != nil {
+							v.Clear()
+							printMovePrompt(v)
+						}
+						return nil
+					})
+				}()
+			}
+			return nil
 		}
 	}
+
+	// Place the stone and update the board
+	gui.Grid[cursorRow][cursorCol] = stone
+	for _, pt := range captured {
+		gui.Grid[pt.Row][pt.Col] = game.Empty
+	}
+
+	// Ko rule: set koPoint if exactly one stone was captured and the group size is 1
+	if len(captured) == 1 {
+		koPoint = &captured[0]
+	} else {
+		koPoint = nil
+	}
+
+	// Update prevBoard for next move (for Ko rule)
+	copy(prevBoard[:], nextBoard[:])
+
+	currentPlayer = 3 - currentPlayer // Switch player only after a legal move
+	return nil
+}
+
+func passTurn(g *gocui.Gui, v *gocui.View) error {
+	// Update prevBoard to current board for Ko rule
+	if prevBoard == nil {
+		prev := game.Board{}
+		copy(prev[:], gui.Grid[:])
+		prevBoard = &prev
+	} else {
+		copy(prevBoard[:], gui.Grid[:])
+	}
+	koPoint = nil // Passing clears Ko
+	// Show "Turn passed." message briefly
+	if v, err := g.View("prompt"); err == nil {
+		v.Clear()
+		fmt.Fprint(v, "Turn passed.")
+		go func() {
+			time.Sleep(1 * time.Second)
+			g.Update(func(_ *gocui.Gui) error {
+				if v, err := g.View("prompt"); err == nil && v != nil {
+					v.Clear()
+					printMovePrompt(v)
+				}
+				return nil
+			})
+		}()
+	}
+
+	currentPlayer = 3 - currentPlayer
 	return nil
 }
 
@@ -181,11 +284,18 @@ func main() {
 	moveDownKey := []rune(keybindings["moveDown"])[0]
 	quitKey := []rune(keybindings["quit"])[0]
 	placeStoneKey := keybindings["placeStone"]
+	passTurnKey := keybindings["passTurn"]
 	var placeKey rune
 	if placeStoneKey == "space" {
 		placeKey = ' '
 	} else {
 		placeKey = []rune(placeStoneKey)[0]
+	}
+	var passKey rune
+	if passTurnKey == "space" {
+		passKey = ' '
+	} else {
+		passKey = []rune(passTurnKey)[0]
 	}
 
 	// Lowercase: move regardless of occupation
@@ -216,6 +326,9 @@ func main() {
 	}
 
 	if err := g.SetKeybinding("", placeKey, gocui.ModNone, placeStone); err != nil {
+		log.Panicln(err)
+	}
+	if err := g.SetKeybinding("", passKey, gocui.ModNone, passTurn); err != nil {
 		log.Panicln(err)
 	}
 	if err := g.SetKeybinding("", quitKey, gocui.ModNone, quit); err != nil {
