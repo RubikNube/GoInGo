@@ -18,6 +18,7 @@ var (
 	cursorRow, cursorCol int
 	gui                  game.Gui
 	keybindings          map[string]string
+	prevBoard            *game.Board // Track previous board for Ko rule
 )
 
 func loadConfig(path string) (Config, error) {
@@ -97,20 +98,59 @@ func moveCursor(dRow, dCol int, jumpOverOccupied bool) func(*gocui.Gui, *gocui.V
 }
 
 func placeStone(g *gocui.Gui, v *gocui.View) error {
-	if gui.Grid[cursorRow][cursorCol] == game.Empty {
-		stone := game.Black
-		stoneCount := 0
-		for i := 0; i < 9; i++ {
-			for j := 0; j < 9; j++ {
-				if gui.Grid[i][j] == game.Black || gui.Grid[i][j] == game.White {
-					stoneCount++
+	if gui.Grid[cursorRow][cursorCol] != game.Empty {
+		return nil
+	}
+	stone := game.Black
+	stoneCount := 0
+	for i := 0; i < 9; i++ {
+		for j := 0; j < 9; j++ {
+			if gui.Grid[i][j] == game.Black || gui.Grid[i][j] == game.White {
+				stoneCount++
+			}
+		}
+	}
+	if stoneCount%2 == 1 {
+		stone = game.White
+	}
+	// Track previous board for Ko rule (simple implementation: store last board)
+	if prevBoard == nil {
+		// First move, no previous board
+		prev := game.Board{}
+		copy(prev[:], gui.Grid[:])
+		prevBoard = &prev
+	}
+	var nextBoard game.Board
+	copy(nextBoard[:], gui.Grid[:])
+	nextBoard[cursorRow][cursorCol] = stone
+
+	if game.IsLegalMove(gui.Grid, game.Point{Row: cursorRow, Col: cursorCol}, stone, *prevBoard) {
+		gui.Grid[cursorRow][cursorCol] = stone
+
+		// Remove opponent groups with no liberties (capture)
+		opp := game.Black
+		if stone == game.Black {
+			opp = game.White
+		}
+		for _, n := range game.Neighbors(game.Point{Row: cursorRow, Col: cursorCol}) {
+			if gui.Grid[n.Row][n.Col] == opp {
+				group, libs := game.Group(gui.Grid, n)
+				if len(libs) == 0 {
+					for stonePt := range group {
+						gui.Grid[stonePt.Row][stonePt.Col] = game.Empty
+					}
 				}
 			}
 		}
-		if stoneCount%2 == 1 {
-			stone = game.White
+
+		// Update prevBoard for next move
+		copy(prevBoard[:], nextBoard[:])
+	} else {
+		// Optionally, show a message to the user (here: print to prompt view)
+		if v, err := g.View("prompt"); err == nil {
+			v.Clear()
+			fmt.Fprint(v, "Illegal move! Try again.")
 		}
-		gui.Grid[cursorRow][cursorCol] = stone
 	}
 	return nil
 }
