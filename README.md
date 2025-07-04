@@ -12,6 +12,7 @@ The Game of Go written in Go
     * `j` - down
     * `k` - up
     * `l` - right
+    * `x` - pass turn
     * `q` - quit
     * `ẁ` - save game
     * `p` - place stone
