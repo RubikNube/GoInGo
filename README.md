@@ -95,3 +95,21 @@ the group. False eyes prevent a group from being truly alive.
 Groups of stones that cannot avoid capture, no matter how play continues. At
 the end of the game, dead groups are removed from the board and counted as
 captured stones for scoring.
+
+## Implementation Details
+
+### Game State Representation
+
+The game state is stored in a uint8. The board is represented as a 9x9 grid,
+where each intersection can be empty, occupied by a black stone, or occupied by
+a white stone.
+
+With 8 bit we can represent 2^8 = 256 different states. For a 9x9 board we have 81
+intersections, which means we need 81 * 2 (black and white)= 162 different states.
+The first 81 states (0-80) represent the black stones, the next 81 states (81-161)
+represent the white stones. The last 95 states (162-256) are reserved for special
+cases like passing, ko, and seki.
+
+0-80: black stones
+81-161: white stones
+162-256: special cases (ko, seki, passing)
