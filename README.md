@@ -2,6 +2,8 @@
 
 The Game of Go written in Go
 
+![GoInGo](./images/GoInGo.gif)
+
 ## Features
 
 * Play against a computer opponent
