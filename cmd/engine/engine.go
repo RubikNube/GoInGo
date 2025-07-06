@@ -1,26 +1,28 @@
-// Package game provides a simple Go engine interface and a random-move engine.
-package game
+// Package engine provides a simple Go engine interface and a random-move engine.
+package engine
 
 import (
 	"math/rand"
 	"time"
+
+	"github.com/RubikNube/GoInGo/cmd/game"
 )
 
 // Engine is an interface for Go engines.
 type Engine interface {
 	// Move returns the next move as a Point, or nil if passing.
-	Move(board Board, player FieldState, ko *Point) *Point
+	Move(board game.Board, player game.FieldState, ko *game.Point) *game.Point
 }
 
 // RandomEngine implements Engine by picking a random legal move.
 type RandomEngine struct{}
 
-func (e *RandomEngine) Move(board Board, player FieldState, ko *Point) *Point {
-	empty := []Point{}
+func (e *RandomEngine) Move(board game.Board, player game.FieldState, ko *game.Point) *game.Point {
+	empty := []game.Point{}
 	for i := 0; i < 9; i++ {
 		for j := 0; j < 9; j++ {
-			if board[i][j] == Empty {
-				empty = append(empty, Point{Row: i, Col: j})
+			if board[i][j] == game.Empty {
+				empty = append(empty, game.Point{Row: i, Col: j})
 			}
 		}
 	}
@@ -32,26 +34,26 @@ func (e *RandomEngine) Move(board Board, player FieldState, ko *Point) *Point {
 		if ko != nil && pt.Row == ko.Row && pt.Col == ko.Col {
 			continue
 		}
-		var nextBoard Board
+		var nextBoard game.Board
 		copy(nextBoard[:], board[:])
 		nextBoard[pt.Row][pt.Col] = player
-		opp := Black
-		if player == Black {
-			opp = White
+		opp := game.Black
+		if player == game.Black {
+			opp = game.White
 		}
-		captured := []Point{}
-		for _, n := range Neighbors(pt) {
+		captured := []game.Point{}
+		for _, n := range game.Neighbors(pt) {
 			if nextBoard[n.Row][n.Col] == opp {
-				group, libs := Group(nextBoard, n)
+				group, libs := game.Group(nextBoard, n)
 				if len(libs) == 0 {
 					for stonePt := range group {
-						nextBoard[stonePt.Row][stonePt.Col] = Empty
+						nextBoard[stonePt.Row][stonePt.Col] = game.Empty
 						captured = append(captured, stonePt)
 					}
 				}
 			}
 		}
-		_, libs := Group(nextBoard, pt)
+		_, libs := game.Group(nextBoard, pt)
 		if len(libs) == 0 {
 			continue
 		}

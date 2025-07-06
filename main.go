@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/RubikNube/GoInGo/cmd/engine"
 	"github.com/RubikNube/GoInGo/cmd/game"
 	"github.com/jroimartin/gocui"
 )
@@ -20,13 +21,13 @@ var (
 	cursorRow, cursorCol int
 	gui                  game.Gui
 	keybindings          map[string]string
-	prevBoard            *game.Board     // Track previous board for Ko rule
-	currentPlayer        int         = 1 // Track current player (1 or 2), start with Black
-	koPoint              *game.Point     // Track Ko point (nil if no Ko)
-	passCount            int             // Track consecutive passes
-	gameOver             bool            // Track if the game is over
-	engineEnabled        bool            // Play against engine if true
-	engine               game.Engine     // The engine instance
+	prevBoard            *game.Board       // Track previous board for Ko rule
+	currentPlayer        int           = 1 // Track current player (1 or 2), start with Black
+	koPoint              *game.Point       // Track Ko point (nil if no Ko)
+	passCount            int               // Track consecutive passes
+	gameOver             bool              // Track if the game is over
+	engineEnabled        bool              // Play against engine if true
+	selectedEngine       engine.Engine     // The engine instance
 )
 
 func loadConfig(path string) (Config, error) {
@@ -302,10 +303,10 @@ func quit(g *gocui.Gui, v *gocui.View) error {
 
 func engineMove(g *gocui.Gui) {
 	// Use the engine interface to get a move for White
-	if engine == nil {
+	if selectedEngine == nil {
 		return
 	}
-	move := engine.Move(gui.Grid, game.White, koPoint)
+	move := selectedEngine.Move(gui.Grid, game.White, koPoint)
 	if move != nil {
 		// Do not move the cursor for the engine, just place the stone directly
 		row, col := move.Row, move.Col
@@ -361,13 +362,10 @@ func main() {
 	}
 	keybindings = cfg.Keybindings
 
-	engine = &game.RandomEngine{}
+	selectedEngine = &engine.RandomEngine{}
 	engineEnabled = true // Enable engine by default
 
 	defer g.Close()
-	keybindings = cfg.Keybindings
-
-	engine = &game.RandomEngine{}
 
 	if err != nil {
 		log.Panicln(err)
