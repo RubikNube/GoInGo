@@ -25,6 +25,8 @@ var (
 	koPoint              *game.Point     // Track Ko point (nil if no Ko)
 	passCount            int             // Track consecutive passes
 	gameOver             bool            // Track if the game is over
+	engineEnabled        bool            // Play against engine if true
+	engine               game.Engine     // The engine instance
 )
 
 func loadConfig(path string) (Config, error) {
@@ -232,6 +234,17 @@ func placeStone(g *gocui.Gui, v *gocui.View) error {
 	passCount = 0 // Reset pass count on a move
 
 	currentPlayer = 3 - currentPlayer // Switch player only after a legal move
+
+	// If engine is enabled and it's the engine's turn, make engine move
+	if engineEnabled && !gameOver && currentPlayer == 2 {
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			g.Update(func(g *gocui.Gui) error {
+				engineMove(g)
+				return nil
+			})
+		}()
+	}
 	return nil
 }
 
@@ -287,13 +300,74 @@ func quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
 }
 
+func engineMove(g *gocui.Gui) {
+	// Use the engine interface to get a move for White
+	if engine == nil {
+		return
+	}
+	move := engine.Move(gui.Grid, game.White, koPoint)
+	if move != nil {
+		// Do not move the cursor for the engine, just place the stone directly
+		row, col := move.Row, move.Col
+		gui.Grid[row][col] = game.White
+
+		// Simulate captures and ko logic as in placeStone
+		var nextBoard game.Board
+		copy(nextBoard[:], gui.Grid[:])
+		opp := game.Black
+		captured := []game.Point{}
+		for _, n := range game.Neighbors(game.Point{Row: row, Col: col}) {
+			if nextBoard[n.Row][n.Col] == opp {
+				group, libs := game.Group(nextBoard, n)
+				if len(libs) == 0 {
+					for stonePt := range group {
+						nextBoard[stonePt.Row][stonePt.Col] = game.Empty
+						captured = append(captured, stonePt)
+					}
+				}
+			}
+		}
+		for _, pt := range captured {
+			gui.Grid[pt.Row][pt.Col] = game.Empty
+		}
+		// Ko rule: set koPoint if exactly one stone was captured and the group size is 1
+		if len(captured) == 1 {
+			koPoint = &captured[0]
+		} else {
+			koPoint = nil
+		}
+		// Update prevBoard for next move (for Ko rule)
+		if prevBoard == nil {
+			prev := game.Board{}
+			copy(prev[:], gui.Grid[:])
+			prevBoard = &prev
+		}
+		copy(prevBoard[:], gui.Grid[:])
+		passCount = 0
+		currentPlayer = 1 // Switch back to player
+	} else {
+		_ = passTurn(g, nil)
+	}
+}
+
 func main() {
 	g, err := gocui.NewGui(gocui.OutputNormal)
+	if err != nil {
+		log.Panicln(err)
+	}
 	cfg, err := loadConfig("config.json")
 	if err != nil {
 		log.Panicln("Failed to load config:", err)
 	}
 	keybindings = cfg.Keybindings
+
+	engine = &game.RandomEngine{}
+	engineEnabled = true // Enable engine by default
+
+	defer g.Close()
+	keybindings = cfg.Keybindings
+
+	engine = &game.RandomEngine{}
 
 	if err != nil {
 		log.Panicln(err)
@@ -359,8 +433,32 @@ func main() {
 	if err := g.SetKeybinding("", quitKey, gocui.ModNone, quit); err != nil {
 		log.Panicln(err)
 	}
+	// Engine toggle: enable for second player
+	enableEngineKey := []rune(keybindings["enableEngine"])[0]
+	if err := g.SetKeybinding("", enableEngineKey, gocui.ModNone, toggleEngine); err != nil {
+		log.Panicln(err)
+	}
 
 	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
 		log.Panicln(err)
 	}
+}
+
+func toggleEngine(g *gocui.Gui, v *gocui.View) error {
+	engineEnabled = !engineEnabled
+	if v, err := g.View("prompt"); err == nil && v != nil {
+		v.Clear()
+		printMovePrompt(v)
+	}
+	// If toggled on and it's engine's turn (player 2/White), make engine move
+	if engineEnabled && !gameOver && currentPlayer == 2 {
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			g.Update(func(g *gocui.Gui) error {
+				engineMove(g)
+				return nil
+			})
+		}()
+	}
+	return nil
 }
