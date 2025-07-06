@@ -23,6 +23,8 @@ var (
 	prevBoard            *game.Board     // Track previous board for Ko rule
 	currentPlayer        int         = 1 // Track current player (1 or 2), start with Black
 	koPoint              *game.Point     // Track Ko point (nil if no Ko)
+	passCount            int             // Track consecutive passes
+	gameOver             bool            // Track if the game is over
 )
 
 func loadConfig(path string) (Config, error) {
@@ -106,6 +108,9 @@ func moveCursor(dRow, dCol int, jumpOverOccupied bool) func(*gocui.Gui, *gocui.V
 }
 
 func placeStone(g *gocui.Gui, v *gocui.View) error {
+	if gameOver {
+		return nil
+	}
 	if gui.Grid[cursorRow][cursorCol] != game.Empty {
 		return nil
 	}
@@ -224,6 +229,8 @@ func placeStone(g *gocui.Gui, v *gocui.View) error {
 	// Update prevBoard for next move (for Ko rule)
 	copy(prevBoard[:], nextBoard[:])
 
+	passCount = 0 // Reset pass count on a move
+
 	currentPlayer = 3 - currentPlayer // Switch player only after a legal move
 	return nil
 }
@@ -238,6 +245,24 @@ func passTurn(g *gocui.Gui, v *gocui.View) error {
 		copy(prevBoard[:], gui.Grid[:])
 	}
 	koPoint = nil // Passing clears Ko
+
+	passCount++
+	if passCount >= 2 {
+		gameOver = true
+		if v, err := g.View("prompt"); err == nil {
+			v.Clear()
+			blackScore, whiteScore := game.CalculateScore(gui.Grid)
+			winner := "Black"
+			if whiteScore > blackScore {
+				winner = "White"
+			} else if whiteScore == blackScore {
+				winner = "Draw"
+			}
+			fmt.Fprintf(v, "Game Over! Black: %d, White: %d. Winner: %s", blackScore, whiteScore, winner)
+		}
+		return nil
+	}
+
 	// Show "Turn passed." message briefly
 	if v, err := g.View("prompt"); err == nil {
 		v.Clear()

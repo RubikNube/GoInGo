@@ -99,3 +99,59 @@ func IsLegalMove(b Board, p Point, color FieldState, prev Board) bool {
 	}
 	return true
 }
+
+// CalculateScore returns the territory score for Black and White.
+func CalculateScore(b Board) (black, white int) {
+	visited := make(map[Point]struct{})
+	for i := 0; i < BoardSize; i++ {
+		for j := 0; j < BoardSize; j++ {
+			pt := Point{i, j}
+			if b[i][j] == Black {
+				black++
+			} else if b[i][j] == White {
+				white++
+			} else if _, seen := visited[pt]; !seen && b[i][j] == Empty {
+				// Flood fill empty area
+				area, owner := territoryOwner(b, pt, visited)
+				if owner == Black {
+					black += area
+				} else if owner == White {
+					white += area
+				}
+			}
+		}
+	}
+	return
+}
+
+// territoryOwner returns the size and owner (Black/White/Empty) of a territory.
+func territoryOwner(b Board, start Point, visited map[Point]struct{}) (size int, owner FieldState) {
+	queue := []Point{start}
+	owner = Empty
+	border := make(map[FieldState]struct{})
+	for len(queue) > 0 {
+		p := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		if _, ok := visited[p]; ok {
+			continue
+		}
+		visited[p] = struct{}{}
+		size++
+		for _, n := range Neighbors(p) {
+			switch b[n.Row][n.Col] {
+			case Empty:
+				if _, ok := visited[n]; !ok {
+					queue = append(queue, n)
+				}
+			case Black, White:
+				border[b[n.Row][n.Col]] = struct{}{}
+			}
+		}
+	}
+	if len(border) == 1 {
+		for k := range border {
+			return size, k
+		}
+	}
+	return size, Empty
+}
