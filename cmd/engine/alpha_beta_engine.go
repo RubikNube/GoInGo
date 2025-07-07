@@ -18,6 +18,11 @@ func (e *AlphaBetaEngine) Move(board game.Board, player game.FieldState, ko *gam
 	depth := 4 // Shallow for performance; increase for stronger play
 	moveFound := false
 
+	// Ensure killerMoves map is initialized
+	if e.killerMoves == nil {
+		e.killerMoves = make(map[int]*game.Point)
+	}
+
 	for i := 0; i < 9; i++ {
 		for j := 0; j < 9; j++ {
 			if board[i][j] != game.Empty {
