@@ -363,7 +363,7 @@ func main() {
 	keybindings = cfg.Keybindings
 
 	// selectedEngine = &engine.RandomEngine{}
-	selectedEngine = &engine.AlphaBetaEngine{}
+	selectedEngine = engine.NewAlphaBetaEngine()
 	engineEnabled = true // Enable engine by default
 
 	defer g.Close()
