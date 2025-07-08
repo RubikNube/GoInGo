@@ -7,7 +7,7 @@ import (
 )
 
 // FieldState A field an either empty or occupied by a black or white stone.
-type FieldState int
+type FieldState uint8
 
 // Constants for the FieldState type
 const (

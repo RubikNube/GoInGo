@@ -15,7 +15,7 @@ func (e *RandomEngine) Move(board game.Board, player game.FieldState, ko *game.P
 	for i := 0; i < 9; i++ {
 		for j := 0; j < 9; j++ {
 			if board[i][j] == game.Empty {
-				empty = append(empty, game.Point{Row: i, Col: j})
+				empty = append(empty, game.Point{Row: int8(i), Col: int8(j)})
 			}
 		}
 	}

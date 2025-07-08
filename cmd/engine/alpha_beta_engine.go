@@ -23,8 +23,8 @@ func (e *AlphaBetaEngine) Move(board game.Board, player game.FieldState, ko *gam
 		e.killerMoves = make(map[int]*game.Point)
 	}
 
-	for i := 0; i < 9; i++ {
-		for j := 0; j < 9; j++ {
+	for i := int8(0); i < 9; i++ {
+		for j := int8(0); j < 9; j++ {
 			if board[i][j] != game.Empty {
 				continue
 			}
@@ -123,7 +123,7 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 			if board[i][j] != game.Empty {
 				continue
 			}
-			pt := game.Point{Row: i, Col: j}
+			pt := game.Point{Row: int8(i), Col: int8(j)}
 			if ko != nil && pt.Row == ko.Row && pt.Col == ko.Col {
 				continue
 			}
@@ -179,7 +179,7 @@ func evaluate(board game.Board, player, opp game.FieldState) int {
 	visited := make(map[game.Point]bool)
 	for i := 0; i < 9; i++ {
 		for j := 0; j < 9; j++ {
-			pt := game.Point{Row: i, Col: j}
+			pt := game.Point{Row: int8(i), Col: int8(j)}
 			if visited[pt] || board[i][j] == game.Empty {
 				continue
 			}

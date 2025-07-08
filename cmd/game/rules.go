@@ -5,8 +5,8 @@ const BoardSize = 9
 
 // Point represents a coordinate on the board.
 type Point struct {
-	Row int
-	Col int
+	Row int8
+	Col int8
 }
 
 // Board is a BoardSize x BoardSize Go board.
@@ -15,7 +15,7 @@ type Board [BoardSize][BoardSize]FieldState
 // Neighbors returns the adjacent points of a given point.
 func Neighbors(p Point) []Point {
 	var n []Point
-	dirs := []struct{ dr, dc int }{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+	dirs := []struct{ dr, dc int8 }{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
 	for _, d := range dirs {
 		r, c := p.Row+d.dr, p.Col+d.dc
 		if r >= 0 && r < BoardSize && c >= 0 && c < BoardSize {
@@ -101,10 +101,10 @@ func IsLegalMove(b Board, p Point, color FieldState, prev Board) bool {
 }
 
 // CalculateScore returns the territory score for Black and White.
-func CalculateScore(b Board) (black, white int) {
+func CalculateScore(b Board) (black, white int8) {
 	visited := make(map[Point]struct{})
-	for i := 0; i < BoardSize; i++ {
-		for j := 0; j < BoardSize; j++ {
+	for i := int8(0); i < BoardSize; i++ {
+		for j := int8(0); j < BoardSize; j++ {
 			pt := Point{i, j}
 			if b[i][j] == Black {
 				black++
@@ -125,7 +125,7 @@ func CalculateScore(b Board) (black, white int) {
 }
 
 // territoryOwner returns the size and owner (Black/White/Empty) of a territory.
-func territoryOwner(b Board, start Point, visited map[Point]struct{}) (size int, owner FieldState) {
+func territoryOwner(b Board, start Point, visited map[Point]struct{}) (size int8, owner FieldState) {
 	queue := []Point{start}
 	owner = Empty
 	border := make(map[FieldState]struct{})

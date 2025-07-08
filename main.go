@@ -118,7 +118,7 @@ func placeStone(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 	// Ko rule: forbid move at koPoint
-	if koPoint != nil && cursorRow == koPoint.Row && cursorCol == koPoint.Col {
+	if koPoint != nil && int8(cursorRow) == koPoint.Row && int8(cursorCol) == koPoint.Col {
 		if v, err := g.View("prompt"); err == nil && v != nil {
 			v.Clear()
 			fmt.Fprint(v, "Illegal move! Ko rule.")
@@ -156,7 +156,7 @@ func placeStone(g *gocui.Gui, v *gocui.View) error {
 		opp = game.White
 	}
 	captured := []game.Point{}
-	for _, n := range game.Neighbors(game.Point{Row: cursorRow, Col: cursorCol}) {
+	for _, n := range game.Neighbors(game.Point{Row: int8(cursorRow), Col: int8(cursorCol)}) {
 		if nextBoard[n.Row][n.Col] == opp {
 			group, libs := game.Group(nextBoard, n)
 			if len(libs) == 0 {
@@ -169,7 +169,7 @@ func placeStone(g *gocui.Gui, v *gocui.View) error {
 	}
 
 	// Check for liberties of the placed stone's group (suicide rule)
-	_, libs := game.Group(nextBoard, game.Point{Row: cursorRow, Col: cursorCol})
+	_, libs := game.Group(nextBoard, game.Point{Row: int8(cursorRow), Col: int8(cursorCol)})
 	if len(libs) == 0 {
 		if v, err := g.View("prompt"); err == nil && v != nil {
 			v.Clear()
