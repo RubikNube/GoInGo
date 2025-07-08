@@ -1,6 +1,10 @@
 package engine
 
-import "github.com/RubikNube/GoInGo/cmd/game"
+import (
+	"sort"
+
+	"github.com/RubikNube/GoInGo/cmd/game"
+)
 
 // AlphaBetaEngine implements Engine using alpha-beta pruning with killer move heuristic.
 type AlphaBetaEngine struct {
@@ -85,6 +89,14 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 	}
 	foundMove := false
 
+	// Null Move Pruning: try skipping a move (pass) if depth is sufficient
+	if depth >= 2 {
+		passScore := -e.alphaBeta(board, opp, player, ko, depth-2, -beta, -beta+1)
+		if passScore >= beta {
+			return passScore
+		}
+	}
+
 	// Try killer move first if available
 	if killer, ok := e.killerMoves[depth]; ok && killer != nil && board[killer.Row][killer.Col] == game.Empty {
 		pt := *killer
@@ -118,46 +130,43 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 		}
 	}
 
-	for i := 0; i < 9; i++ {
-		for j := 0; j < 9; j++ {
-			if board[i][j] != game.Empty {
-				continue
-			}
-			pt := game.Point{Row: int8(i), Col: int8(j)}
-			if ko != nil && pt.Row == ko.Row && pt.Col == ko.Col {
-				continue
-			}
-			// Skip killer move (already tried)
-			if killer, ok := e.killerMoves[depth]; ok && killer != nil && pt.Row == killer.Row && pt.Col == killer.Col {
-				continue
-			}
-			var nextBoard game.Board
-			copy(nextBoard[:], board[:])
-			nextBoard[pt.Row][pt.Col] = player
-			for _, n := range game.Neighbors(pt) {
-				if nextBoard[n.Row][n.Col] == opp {
-					group, libs := game.Group(nextBoard, n)
-					if len(libs) == 0 {
-						for stonePt := range group {
-							nextBoard[stonePt.Row][stonePt.Col] = game.Empty
-						}
+	for _, pt := range orderedMoves(board, player) {
+		if board[pt.Row][pt.Col] != game.Empty {
+			continue
+		}
+		if ko != nil && pt.Row == ko.Row && pt.Col == ko.Col {
+			continue
+		}
+		// Skip killer move (already tried)
+		if killer, ok := e.killerMoves[depth]; ok && killer != nil && pt.Row == killer.Row && pt.Col == killer.Col {
+			continue
+		}
+		var nextBoard game.Board
+		copy(nextBoard[:], board[:])
+		nextBoard[pt.Row][pt.Col] = player
+		for _, n := range game.Neighbors(pt) {
+			if nextBoard[n.Row][n.Col] == opp {
+				group, libs := game.Group(nextBoard, n)
+				if len(libs) == 0 {
+					for stonePt := range group {
+						nextBoard[stonePt.Row][stonePt.Col] = game.Empty
 					}
 				}
 			}
-			_, libs := game.Group(nextBoard, pt)
-			if len(libs) == 0 {
-				continue
-			}
-			foundMove = true
-			score := -e.alphaBeta(nextBoard, opp, player, ko, depth-1, -beta, -alpha)
-			if score > alpha {
-				alpha = score
-				// Update killer move if this move caused a beta cutoff
-				if alpha >= beta {
-					move := pt
-					e.killerMoves[depth] = &move
-					return alpha
-				}
+		}
+		_, libs := game.Group(nextBoard, pt)
+		if len(libs) == 0 {
+			continue
+		}
+		foundMove = true
+		score := -e.alphaBeta(nextBoard, opp, player, ko, depth-1, -beta, -alpha)
+		if score > alpha {
+			alpha = score
+			// Update killer move if this move caused a beta cutoff
+			if alpha >= beta {
+				move := pt
+				e.killerMoves[depth] = &move
+				return alpha
 			}
 		}
 	}
@@ -167,6 +176,54 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 		alpha = passScore
 	}
 	return alpha
+}
+
+// orderedMoves returns a list of all empty points, ordered by proximity to existing stones and capture potential.
+func orderedMoves(board game.Board, player game.FieldState) []game.Point {
+	type moveScore struct {
+		pt    game.Point
+		score int
+	}
+	var moves []moveScore
+	// Find all empty points and score them
+	for i := int8(0); i < 9; i++ {
+		for j := int8(0); j < 9; j++ {
+			if board[i][j] != game.Empty {
+				continue
+			}
+			pt := game.Point{Row: i, Col: j}
+			score := 0
+			// Proximity: +1 for each neighbor that is not empty
+			for _, n := range game.Neighbors(pt) {
+				if board[n.Row][n.Col] != game.Empty {
+					score += 2
+				}
+			}
+			// Capture potential: +5 for each neighbor group with 1 liberty
+			opp := game.Black
+			if player == game.Black {
+				opp = game.White
+			}
+			for _, n := range game.Neighbors(pt) {
+				if board[n.Row][n.Col] == opp {
+					_, libs := game.Group(board, n)
+					if len(libs) == 1 {
+						score += 5
+					}
+				}
+			}
+			moves = append(moves, moveScore{pt, score})
+		}
+	}
+	// Sort moves by descending score
+	sort.Slice(moves, func(i, j int) bool {
+		return moves[i].score > moves[j].score
+	})
+	result := make([]game.Point, len(moves))
+	for i, m := range moves {
+		result[i] = m.pt
+	}
+	return result
 }
 
 // evaluate is a sophisticated evaluation function considering liberties, groups, and captures.
