@@ -12,8 +12,8 @@ type RandomEngine struct{}
 
 func (e *RandomEngine) Move(board game.Board, player game.FieldState, ko *game.Point) *game.Point {
 	empty := []game.Point{}
-	for i := 0; i < 9; i++ {
-		for j := 0; j < 9; j++ {
+	for i := int8(0); i < 9; i++ {
+		for j := int8(0); j < 9; j++ {
 			if board[i][j] == game.Empty {
 				empty = append(empty, game.Point{Row: int8(i), Col: int8(j)})
 			}

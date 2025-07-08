@@ -18,13 +18,13 @@ type Config struct {
 }
 
 var (
-	cursorRow, cursorCol int
+	cursorRow, cursorCol int8
 	gui                  game.Gui
 	keybindings          map[string]string
 	prevBoard            *game.Board       // Track previous board for Ko rule
-	currentPlayer        int           = 1 // Track current player (1 or 2), start with Black
+	currentPlayer        int8          = 1 // Track current player (1 or 2), start with Black
 	koPoint              *game.Point       // Track Ko point (nil if no Ko)
-	passCount            int               // Track consecutive passes
+	passCount            int8              // Track consecutive passes
 	gameOver             bool              // Track if the game is over
 	engineEnabled        bool              // Play against engine if true
 	selectedEngine       engine.Engine     // The engine instance
@@ -70,7 +70,7 @@ func layout(g *gocui.Gui) error {
 	return nil
 }
 
-func moveCursor(dRow, dCol int, jumpOverOccupied bool) func(*gocui.Gui, *gocui.View) error {
+func moveCursor(dRow, dCol int8, jumpOverOccupied bool) func(*gocui.Gui, *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
 		nextRow, nextCol := cursorRow, cursorCol
 		for {
@@ -191,7 +191,7 @@ func placeStone(g *gocui.Gui, v *gocui.View) error {
 	// Ko rule and legality check: resulting board must not match prevBoard
 	if prevBoard != nil {
 		same := true
-		for i := range nextBoard {
+		for i := int8(0); i < int8(len(nextBoard)); i++ {
 			if nextBoard[i] != (*prevBoard)[i] {
 				same = false
 				break

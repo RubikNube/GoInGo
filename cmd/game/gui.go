@@ -52,18 +52,19 @@ func (g *Gui) Refresh() {
 	print("\033[?25h") // Show cursor
 }
 
-func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int) {
+func (g *Gui) DrawGridToWriter(w io.Writer, cursorRow, cursorCol int8) {
 	// Column labels
 	fmt.Fprint(w, "   ")
-	for j := range g.Grid[0] {
+	for j := int8(0); j < int8(len(g.Grid[0])); j++ {
 		fmt.Fprintf(w, " %c  ", 'A'+j)
 	}
 	fmt.Fprintln(w)
 
-	for i, row := range g.Grid {
-		// Row label
+	for i := int8(0); i < int8(len(g.Grid)); i++ {
+		row := g.Grid[i]
 		fmt.Fprintf(w, "%2d ", i+1)
-		for j, cellVal := range row {
+		for j := int8(0); j < int8(len(row)); j++ {
+			cellVal := row[j]
 			stone := cellVal.String()
 			if g.Grid[i][j] != Empty {
 				stone = g.Grid[i][j].String()
