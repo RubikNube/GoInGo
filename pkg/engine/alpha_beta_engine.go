@@ -3,7 +3,7 @@ package engine
 import (
 	"sort"
 
-	"github.com/RubikNube/GoInGo/cmd/game"
+	"github.com/RubikNube/GoInGo/pkg/game"
 )
 
 // AlphaBetaEngine implements Engine using alpha-beta pruning with killer move heuristic.

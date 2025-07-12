@@ -12,6 +12,16 @@ type Point struct {
 // Board is a BoardSize x BoardSize Go board.
 type Board [BoardSize][BoardSize]FieldState
 
+func NewBoard() Board {
+	var b Board
+	for i := int8(0); i < BoardSize; i++ {
+		for j := int8(0); j < BoardSize; j++ {
+			b[i][j] = Empty
+		}
+	}
+	return b
+}
+
 // Neighbors returns the adjacent points of a given point.
 func Neighbors(p Point) []Point {
 	var n []Point

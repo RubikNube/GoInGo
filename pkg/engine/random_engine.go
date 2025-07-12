@@ -4,11 +4,16 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/RubikNube/GoInGo/cmd/game"
+	"github.com/RubikNube/GoInGo/pkg/game"
 )
 
 // RandomEngine implements Engine by picking a random legal move.
 type RandomEngine struct{}
+
+// NewRandomEngine creates a new instance of RandomEngine.
+func NewRandomEngine() *RandomEngine {
+	return &RandomEngine{}
+}
 
 func (e *RandomEngine) Move(board game.Board, player game.FieldState, ko *game.Point) *game.Point {
 	empty := []game.Point{}

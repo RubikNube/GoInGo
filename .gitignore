@@ -1,2 +1,8 @@
 # the compiled main module
 main
+
+# the compiled libraries
+libgoengine.h
+libgoengine.so
+goengine
+ctypes

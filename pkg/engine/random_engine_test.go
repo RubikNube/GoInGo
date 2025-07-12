@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"github.com/RubikNube/GoInGo/cmd/game"
+	"github.com/RubikNube/GoInGo/pkg/game"
 )
 
 func TestRandomEngine_MoveReturnsLegalMove(t *testing.T) {

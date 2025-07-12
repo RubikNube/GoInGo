@@ -8,8 +8,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/RubikNube/GoInGo/cmd/engine"
-	"github.com/RubikNube/GoInGo/cmd/game"
+	"github.com/RubikNube/GoInGo/pkg/engine"
+	"github.com/RubikNube/GoInGo/pkg/game"
 	"github.com/jroimartin/gocui"
 )
 

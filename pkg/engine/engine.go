@@ -2,7 +2,7 @@
 package engine
 
 import (
-	"github.com/RubikNube/GoInGo/cmd/game"
+	"github.com/RubikNube/GoInGo/pkg/game"
 )
 
 // Engine is an interface for Go engines.
