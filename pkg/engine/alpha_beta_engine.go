@@ -6,25 +6,37 @@ import (
 	"github.com/RubikNube/GoInGo/pkg/game"
 )
 
-// AlphaBetaEngine implements Engine using alpha-beta pruning with killer move heuristic.
+// AlphaBetaEngine implements Engine using alpha-beta pruning with killer move heuristic, transposition table, and history heuristic.
 type AlphaBetaEngine struct {
-	killerMoves map[int]*game.Point // depth -> killer move
+	killerMoves        map[int]*game.Point // depth -> killer move
+	transpositionTable map[uint64]int      // board hash -> score
+	historyHeuristic   map[game.Point]int  // move -> score for ordering
 }
 
 func NewAlphaBetaEngine() *AlphaBetaEngine {
-	return &AlphaBetaEngine{killerMoves: make(map[int]*game.Point)}
+	return &AlphaBetaEngine{
+		killerMoves:        make(map[int]*game.Point),
+		transpositionTable: make(map[uint64]int),
+		historyHeuristic:   make(map[game.Point]int),
+	}
 }
 
 // Move in AlphaBetaEngine uses alpha-beta pruning to select the best move or pass if no beneficial move exists.
 func (e *AlphaBetaEngine) Move(board game.Board, player game.FieldState, ko *game.Point) *game.Point {
 	bestScore := -1 << 30
 	var bestMove *game.Point
-	depth := 4 // Shallow for performance; increase for stronger play
+	depth := 4 // Shallow for performance; increase for stronger player
 	moveFound := false
 
 	// Ensure killerMoves map is initialized
 	if e.killerMoves == nil {
 		e.killerMoves = make(map[int]*game.Point)
+	}
+	if e.transpositionTable == nil {
+		e.transpositionTable = make(map[uint64]int)
+	}
+	if e.historyHeuristic == nil {
+		e.historyHeuristic = make(map[game.Point]int)
 	}
 
 	for i := int8(0); i < 9; i++ {
@@ -82,17 +94,24 @@ func opponent(player game.FieldState) game.FieldState {
 	return game.Black
 }
 
-// alphaBeta is a minimax search with alpha-beta pruning and killer move heuristic.
+// alphaBeta is a minimax search with alpha-beta pruning, killer move heuristic, transposition table, and history heuristic.
 func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldState, ko *game.Point, depth, alpha, beta int) int {
 	if depth == 0 {
 		return evaluate(board, player, opp)
 	}
 	foundMove := false
 
+	// Transposition table lookup
+	boardHash := boardHash(board, player)
+	if val, ok := e.transpositionTable[boardHash]; ok {
+		return val
+	}
+
 	// Null Move Pruning: try skipping a move (pass) if depth is sufficient
 	if depth >= 2 {
 		passScore := -e.alphaBeta(board, opp, player, ko, depth-2, -beta, -beta+1)
 		if passScore >= beta {
+			e.transpositionTable[boardHash] = passScore
 			return passScore
 		}
 	}
@@ -118,11 +137,14 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 			if len(libs) != 0 {
 				foundMove = true
 				score := -e.alphaBeta(nextBoard, opp, player, ko, depth-1, -beta, -alpha)
+				// History heuristic update
+				e.historyHeuristic[pt] += 1 << uint(depth)
 				if score > alpha {
 					alpha = score
 					// Update killer move if this move caused a beta cutoff
 					if alpha >= beta {
 						e.killerMoves[depth] = &pt
+						e.transpositionTable[boardHash] = alpha
 						return alpha
 					}
 				}
@@ -130,7 +152,7 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 		}
 	}
 
-	for _, pt := range orderedMoves(board, player) {
+	for _, pt := range e.orderedMoves(board, player, depth) {
 		if board[pt.Row][pt.Col] != game.Empty {
 			continue
 		}
@@ -160,12 +182,15 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 		}
 		foundMove = true
 		score := -e.alphaBeta(nextBoard, opp, player, ko, depth-1, -beta, -alpha)
+		// History heuristic update
+		e.historyHeuristic[pt] += 1 << uint(depth)
 		if score > alpha {
 			alpha = score
 			// Update killer move if this move caused a beta cutoff
 			if alpha >= beta {
 				move := pt
 				e.killerMoves[depth] = &move
+				e.transpositionTable[boardHash] = alpha
 				return alpha
 			}
 		}
@@ -175,17 +200,18 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 	if !foundMove || passScore > alpha {
 		alpha = passScore
 	}
+	e.transpositionTable[boardHash] = alpha
 	return alpha
 }
 
-// orderedMoves returns a list of all empty points, ordered by proximity to existing stones and capture potential.
-func orderedMoves(board game.Board, player game.FieldState) []game.Point {
+// orderedMoves returns a list of all empty points, ordered by killer move, history heuristic, proximity, and capture potential.
+func (e *AlphaBetaEngine) orderedMoves(board game.Board, player game.FieldState, depth int) []game.Point {
 	type moveScore struct {
 		pt    game.Point
 		score int
 	}
 	var moves []moveScore
-	// Find all empty points and score them
+	killer, hasKiller := e.killerMoves[depth]
 	for i := int8(0); i < 9; i++ {
 		for j := int8(0); j < 9; j++ {
 			if board[i][j] != game.Empty {
@@ -193,6 +219,12 @@ func orderedMoves(board game.Board, player game.FieldState) []game.Point {
 			}
 			pt := game.Point{Row: i, Col: j}
 			score := 0
+			// Killer move gets highest priority
+			if hasKiller && killer != nil && pt.Row == killer.Row && pt.Col == killer.Col {
+				score += 10000
+			}
+			// History heuristic
+			score += e.historyHeuristic[pt] * 10
 			// Proximity: +1 for each neighbor that is not empty
 			for _, n := range game.Neighbors(pt) {
 				if board[n.Row][n.Col] != game.Empty {
@@ -266,4 +298,17 @@ func evaluate(board game.Board, player, opp game.FieldState) int {
 		(playerLibs-oppLibs)*2 +
 		(oppCapturable-playerCapturable)*8 +
 		(playerGroups - oppGroups)
+}
+
+// boardHash returns a simple hash for the board and player.
+// You may want to replace this with Zobrist hashing for better collision resistance.
+func boardHash(board game.Board, player game.FieldState) uint64 {
+	var h uint64
+	for i := 0; i < 9; i++ {
+		for j := 0; j < 9; j++ {
+			h = h*3 + uint64(board[i][j])
+		}
+	}
+	h = h*3 + uint64(player)
+	return h
 }
