@@ -5,7 +5,7 @@ lib = cdll.LoadLibrary('./libgoengine.so')
 
 # Create engines and board
 engineA = lib.NewAlphaBetaEngine()
-engineB = lib.NewRandomEngine()
+engineB = lib.OldAlphaBetaEngine()
 board = lib.NewBoard(c_int(9))
 
 # Call CompareEngines with valid handles
@@ -21,6 +21,6 @@ result = lib.CompareEngines(
 if result == 1:
     print("Winner: Engine A (Alpha-Beta)")
 elif result == 2:
-    print("Winner: Engine B (Random)")
+    print("Winner: Engine B (Old Alpha-Beta)")
 elif result == 0:
     print("Result: Draw")

@@ -9,6 +9,7 @@ import (
 
 	"github.com/RubikNube/GoInGo/pkg/compareengines"
 	"github.com/RubikNube/GoInGo/pkg/engine"
+	"github.com/RubikNube/GoInGo/pkg/engine/old"
 	"github.com/RubikNube/GoInGo/pkg/game"
 )
 
@@ -30,6 +31,17 @@ func NewAlphaBetaEngine() C.uint64_t {
 	engineRegistry.Lock()
 	defer engineRegistry.Unlock()
 	e := engine.NewAlphaBetaEngine()
+	id := engineRegistry.nextID
+	engineRegistry.nextID++
+	engineRegistry.objects[id] = e
+	return C.uint64_t(id)
+}
+
+//export OldAlphaBetaEngine
+func OldAlphaBetaEngine() C.uint64_t {
+	engineRegistry.Lock()
+	defer engineRegistry.Unlock()
+	e := old.NewAlphaBetaEngine()
 	id := engineRegistry.nextID
 	engineRegistry.nextID++
 	engineRegistry.objects[id] = e
