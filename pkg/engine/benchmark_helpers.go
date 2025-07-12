@@ -2,7 +2,7 @@ package engine
 
 import "github.com/RubikNube/GoInGo/pkg/game"
 
-func emptyBoard() game.Board {
+func EmptyBoard() game.Board {
 	var b game.Board
 	for i := range b {
 		for j := range b[i] {
@@ -12,8 +12,8 @@ func emptyBoard() game.Board {
 	return b
 }
 
-func midGameBoard() game.Board {
-	b := emptyBoard()
+func MidGameBoard() game.Board {
+	b := EmptyBoard()
 	b[2][2] = game.Black
 	b[2][3] = game.White
 	b[3][2] = game.White
