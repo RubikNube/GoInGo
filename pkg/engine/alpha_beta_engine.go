@@ -1,85 +1,113 @@
 package engine
 
 import (
+	"math/rand"
 	"sort"
+	"sync"
 
 	"github.com/RubikNube/GoInGo/pkg/game"
 )
 
+const (
+	minScore = -1 << 30
+	maxScore = 1 << 30
+)
+
+type ttFlag uint8
+
+const (
+	ttExact ttFlag = iota
+	ttLowerBound
+	ttUpperBound
+)
+
+type ttEntry struct {
+	score    int
+	depth    int
+	flag     ttFlag
+	bestMove game.Point
+	hasMove  bool
+}
+
 // AlphaBetaEngine implements Engine using alpha-beta pruning with killer move heuristic, transposition table, and history heuristic.
 type AlphaBetaEngine struct {
-	killerMoves        map[int]*game.Point // depth -> killer move
-	transpositionTable map[uint64]int      // board hash -> score
-	historyHeuristic   map[game.Point]int  // move -> score for ordering
+	killerMoves        map[int]game.Point // depth -> killer move
+	transpositionTable map[uint64]ttEntry // board hash -> entry
+	historyHeuristic   map[game.Point]int // move -> score for ordering
 }
 
 func NewAlphaBetaEngine() *AlphaBetaEngine {
 	return &AlphaBetaEngine{
-		killerMoves:        make(map[int]*game.Point),
-		transpositionTable: make(map[uint64]int),
+		killerMoves:        make(map[int]game.Point),
+		transpositionTable: make(map[uint64]ttEntry),
 		historyHeuristic:   make(map[game.Point]int),
 	}
 }
 
 // Move in AlphaBetaEngine uses alpha-beta pruning to select the best move or pass if no beneficial move exists.
 func (e *AlphaBetaEngine) Move(board game.Board, player game.FieldState, ko *game.Point) *game.Point {
-	bestScore := -1 << 30
+	bestScore := minScore
 	var bestMove *game.Point
 	depth := 4 // Shallow for performance; increase for stronger player
 	moveFound := false
 
 	// Ensure killerMoves map is initialized
 	if e.killerMoves == nil {
-		e.killerMoves = make(map[int]*game.Point)
+		e.killerMoves = make(map[int]game.Point)
 	}
 	if e.transpositionTable == nil {
-		e.transpositionTable = make(map[uint64]int)
+		e.transpositionTable = make(map[uint64]ttEntry)
 	}
 	if e.historyHeuristic == nil {
 		e.historyHeuristic = make(map[game.Point]int)
 	}
 
-	for i := int8(0); i < 9; i++ {
-		for j := int8(0); j < 9; j++ {
-			if board[i][j] != game.Empty {
-				continue
-			}
-			pt := game.Point{Row: i, Col: j}
-			if ko != nil && pt.Row == ko.Row && pt.Col == ko.Col {
-				continue
-			}
-			var nextBoard game.Board
-			copy(nextBoard[:], board[:])
-			nextBoard[pt.Row][pt.Col] = player
-			opp := game.Black
-			if player == game.Black {
-				opp = game.White
-			}
-			for _, n := range game.Neighbors(pt) {
-				if nextBoard[n.Row][n.Col] == opp {
-					group, libs := game.Group(nextBoard, n)
-					if len(libs) == 0 {
-						for stonePt := range group {
-							nextBoard[stonePt.Row][stonePt.Col] = game.Empty
-						}
+	opp := opponent(player)
+	seen := make(map[game.Point]struct{})
+	tryMove := func(pt game.Point) {
+		if _, exists := seen[pt]; exists {
+			return
+		}
+		seen[pt] = struct{}{}
+		if board[pt.Row][pt.Col] != game.Empty {
+			return
+		}
+		if ko != nil && pt.Row == ko.Row && pt.Col == ko.Col {
+			return
+		}
+		nextBoard := board
+		nextBoard[pt.Row][pt.Col] = player
+		for _, n := range game.Neighbors(pt) {
+			if nextBoard[n.Row][n.Col] == opp {
+				group, libs := game.Group(nextBoard, n)
+				if len(libs) == 0 {
+					for stonePt := range group {
+						nextBoard[stonePt.Row][stonePt.Col] = game.Empty
 					}
 				}
 			}
-			_, libs := game.Group(nextBoard, pt)
-			if len(libs) == 0 {
-				continue
-			}
-			score := -e.alphaBeta(nextBoard, opp, player, ko, depth-1, -1<<30, 1<<30)
-			moveFound = true
-			if score > bestScore {
-				bestScore = score
-				move := pt
-				bestMove = &move
-			}
+		}
+		if _, libs := game.Group(nextBoard, pt); len(libs) == 0 {
+			return
+		}
+		moveFound = true
+		score := -e.alphaBeta(nextBoard, opp, player, ko, depth-1, minScore, maxScore)
+		if score > bestScore {
+			bestScore = score
+			move := pt
+			bestMove = &move
 		}
 	}
+
+	if entry, ok := e.transpositionTable[boardHash(board, player)]; ok && entry.hasMove {
+		tryMove(entry.bestMove)
+	}
+	for _, pt := range e.orderedMoves(board, player, depth) {
+		tryMove(pt)
+	}
+
 	// Pass if no move found or if passing is as good or better than any move
-	passScore := -e.alphaBeta(board, opponent(player), player, ko, depth-1, -1<<30, 1<<30)
+	passScore := -e.alphaBeta(board, opp, player, ko, depth-1, minScore, maxScore)
 	if !moveFound || passScore >= bestScore {
 		return nil // pass
 	}
@@ -101,70 +129,59 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 	}
 	foundMove := false
 
-	// Transposition table lookup
-	boardHash := boardHash(board, player)
-	if val, ok := e.transpositionTable[boardHash]; ok {
-		return val
+	boardHashValue := boardHash(board, player)
+	entry, entryFound := e.transpositionTable[boardHashValue]
+	if entryFound && entry.depth >= depth {
+		switch entry.flag {
+		case ttExact:
+			return entry.score
+		case ttLowerBound:
+			if entry.score > alpha {
+				alpha = entry.score
+			}
+		case ttUpperBound:
+			if entry.score < beta {
+				beta = entry.score
+			}
+		}
+		if alpha >= beta {
+			return entry.score
+		}
 	}
+	alphaStart := alpha
+	betaStart := beta
 
 	// Null Move Pruning: try skipping a move (pass) if depth is sufficient
 	if depth >= 2 {
 		passScore := -e.alphaBeta(board, opp, player, ko, depth-2, -beta, -beta+1)
 		if passScore >= beta {
-			e.transpositionTable[boardHash] = passScore
+			e.transpositionTable[boardHashValue] = ttEntry{
+				score:   passScore,
+				depth:   depth,
+				flag:    ttLowerBound,
+				hasMove: false,
+			}
 			return passScore
 		}
 	}
 
-	// Try killer move first if available
-	if killer, ok := e.killerMoves[depth]; ok && killer != nil && board[killer.Row][killer.Col] == game.Empty {
-		pt := *killer
-		if ko == nil || pt.Row != ko.Row || pt.Col != ko.Col {
-			var nextBoard game.Board
-			copy(nextBoard[:], board[:])
-			nextBoard[pt.Row][pt.Col] = player
-			for _, n := range game.Neighbors(pt) {
-				if nextBoard[n.Row][n.Col] == opp {
-					group, libs := game.Group(nextBoard, n)
-					if len(libs) == 0 {
-						for stonePt := range group {
-							nextBoard[stonePt.Row][stonePt.Col] = game.Empty
-						}
-					}
-				}
-			}
-			_, libs := game.Group(nextBoard, pt)
-			if len(libs) != 0 {
-				foundMove = true
-				score := -e.alphaBeta(nextBoard, opp, player, ko, depth-1, -beta, -alpha)
-				// History heuristic update
-				e.historyHeuristic[pt] += 1 << uint(depth)
-				if score > alpha {
-					alpha = score
-					// Update killer move if this move caused a beta cutoff
-					if alpha >= beta {
-						e.killerMoves[depth] = &pt
-						e.transpositionTable[boardHash] = alpha
-						return alpha
-					}
-				}
-			}
-		}
-	}
+	bestValue := minScore
+	bestMove := game.Point{}
+	bestMoveValid := false
+	seen := make(map[game.Point]struct{})
 
-	for _, pt := range e.orderedMoves(board, player, depth) {
+	tryMove := func(pt game.Point) bool {
+		if _, exists := seen[pt]; exists {
+			return false
+		}
+		seen[pt] = struct{}{}
 		if board[pt.Row][pt.Col] != game.Empty {
-			continue
+			return false
 		}
 		if ko != nil && pt.Row == ko.Row && pt.Col == ko.Col {
-			continue
+			return false
 		}
-		// Skip killer move (already tried)
-		if killer, ok := e.killerMoves[depth]; ok && killer != nil && pt.Row == killer.Row && pt.Col == killer.Col {
-			continue
-		}
-		var nextBoard game.Board
-		copy(nextBoard[:], board[:])
+		nextBoard := board
 		nextBoard[pt.Row][pt.Col] = player
 		for _, n := range game.Neighbors(pt) {
 			if nextBoard[n.Row][n.Col] == opp {
@@ -176,32 +193,84 @@ func (e *AlphaBetaEngine) alphaBeta(board game.Board, player, opp game.FieldStat
 				}
 			}
 		}
-		_, libs := game.Group(nextBoard, pt)
-		if len(libs) == 0 {
-			continue
+		if _, libs := game.Group(nextBoard, pt); len(libs) == 0 {
+			return false
 		}
 		foundMove = true
 		score := -e.alphaBeta(nextBoard, opp, player, ko, depth-1, -beta, -alpha)
-		// History heuristic update
+		// History heuristic update to encourage good moves.
 		e.historyHeuristic[pt] += 1 << uint(depth)
+
+		if score > bestValue {
+			bestValue = score
+			bestMove = pt
+			bestMoveValid = true
+		}
 		if score > alpha {
 			alpha = score
-			// Update killer move if this move caused a beta cutoff
 			if alpha >= beta {
-				move := pt
-				e.killerMoves[depth] = &move
-				e.transpositionTable[boardHash] = alpha
-				return alpha
+				e.killerMoves[depth] = pt
+				flag := ttExact
+				switch {
+				case bestValue <= alphaStart:
+					flag = ttUpperBound
+				case bestValue >= betaStart:
+					flag = ttLowerBound
+				}
+				e.transpositionTable[boardHashValue] = ttEntry{
+					score:    bestValue,
+					depth:    depth,
+					flag:     flag,
+					bestMove: bestMove,
+					hasMove:  bestMoveValid,
+				}
+				return true
 			}
 		}
+		return false
 	}
-	// Consider passing if no move found or passing is better
+
+	if entryFound && entry.hasMove {
+		if tryMove(entry.bestMove) {
+			return bestValue
+		}
+	}
+
+	if killer, ok := e.killerMoves[depth]; ok {
+		if tryMove(killer) {
+			return bestValue
+		}
+	}
+
+	for _, pt := range e.orderedMoves(board, player, depth) {
+		if tryMove(pt) {
+			return bestValue
+		}
+	}
+
 	passScore := -e.alphaBeta(board, opp, player, ko, depth-1, -beta, -alpha)
 	if !foundMove || passScore > alpha {
 		alpha = passScore
 	}
-	e.transpositionTable[boardHash] = alpha
-	return alpha
+	if !foundMove || passScore > bestValue {
+		bestValue = passScore
+		bestMoveValid = false
+	}
+	flag := ttExact
+	switch {
+	case bestValue <= alphaStart:
+		flag = ttUpperBound
+	case bestValue >= betaStart:
+		flag = ttLowerBound
+	}
+	e.transpositionTable[boardHashValue] = ttEntry{
+		score:    bestValue,
+		depth:    depth,
+		flag:     flag,
+		bestMove: bestMove,
+		hasMove:  bestMoveValid,
+	}
+	return bestValue
 }
 
 // orderedMoves returns a list of all empty points, ordered by killer move, history heuristic, proximity, and capture potential.
@@ -220,7 +289,7 @@ func (e *AlphaBetaEngine) orderedMoves(board game.Board, player game.FieldState,
 			pt := game.Point{Row: i, Col: j}
 			score := 0
 			// Killer move gets highest priority
-			if hasKiller && killer != nil && pt.Row == killer.Row && pt.Col == killer.Col {
+			if hasKiller && pt.Row == killer.Row && pt.Col == killer.Col {
 				score += 10000
 			}
 			// History heuristic
@@ -300,15 +369,38 @@ func evaluate(board game.Board, player, opp game.FieldState) int {
 		(playerGroups - oppGroups)
 }
 
-// boardHash returns a simple hash for the board and player.
-// You may want to replace this with Zobrist hashing for better collision resistance.
-func boardHash(board game.Board, player game.FieldState) uint64 {
-	var h uint64
-	for i := 0; i < 9; i++ {
-		for j := 0; j < 9; j++ {
-			h = h*3 + uint64(board[i][j])
+// boardHash returns a Zobrist hash for the board and player to reduce collisions.
+var (
+	zobristOnce   sync.Once
+	zobristTable  [game.BoardSize][game.BoardSize][3]uint64
+	zobristPlayer [3]uint64
+)
+
+func initZobrist() {
+	r := rand.New(rand.NewSource(0x102030405060708))
+	for i := 0; i < game.BoardSize; i++ {
+		for j := 0; j < game.BoardSize; j++ {
+			for k := 0; k < 3; k++ {
+				zobristTable[i][j][k] = r.Uint64()
+			}
 		}
 	}
-	h = h*3 + uint64(player)
+	for k := 0; k < 3; k++ {
+		zobristPlayer[k] = r.Uint64()
+	}
+}
+
+func boardHash(board game.Board, player game.FieldState) uint64 {
+	zobristOnce.Do(initZobrist)
+	var h uint64
+	for i := 0; i < game.BoardSize; i++ {
+		for j := 0; j < game.BoardSize; j++ {
+			stone := board[i][j]
+			if stone != game.Empty {
+				h ^= zobristTable[i][j][int(stone)]
+			}
+		}
+	}
+	h ^= zobristPlayer[int(player)]
 	return h
 }
